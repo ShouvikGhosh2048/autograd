@@ -1,0 +1,4 @@
+.vscode
+*.out
+*.so
+__pycache__
