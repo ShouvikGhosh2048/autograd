@@ -9,24 +9,27 @@ def clamp(x, a, b):
     else:
         return x
 
-x1 = [20 * random.random() - 10 for _ in range(100)]
-x2 = [20 * random.random() - 10 for _ in range(100)]
-y = [x1[i] * 10 + x2[i] * 5 - 3 for i in range(100)]
-x1 = Variable(x1)
-x2 = Variable(x2)
+actual = [20 * random.random() - 10, 20 * random.random() - 10, 20 * random.random() - 10]
+x = [[20 * random.random() - 10, 20 * random.random() - 10] for _ in range(100)]
+y = [x[i][0] * actual[0] + x[i][1] * actual[1] + actual[2] for i in range(100)]
+x = Variable(x)
 y = Variable(y)
-b1 = Variable([0.0])
-b2 = Variable([0.0])
-b3 = Variable([0.0])
-vars = [b1, b2, b3]
-loss = (y - b1 * x1 - b2 * x2 - b3) * (y - b1 * x1 - b2 * x2 - b3)
+m = Variable([0.0, 0.0])
+c = Variable([0.0])
+loss = (y - x @ m - c) * (y - x @ m - c)
 
 for _ in range(1000):
-    print('Weights', [var.get_values()[0] for var in vars])
-    for var in vars:
-        var.set_derivative([0.0])
+    print('Weights', [m.get_values(), c.get_values()])
+    m.set_derivative([0.0] * len(m.get_values()))
+    c.set_derivative([0.0])
     loss.backward()
-    for var in vars:
-        val = var.get_values()[0]
-        derivative = clamp(var.get_derivative()[0], -10.0, 10.0)
-        var.set_values([val - 0.001 * derivative])
+
+    m_values = m.get_values()
+    m_derivative = [clamp(m.get_derivative()[i], -10.0, 10.0) for i in range(len(m_values))]
+    m.set_values([m_values[i] - 0.001 * m_derivative[i] for i in range(len(m_values))])
+
+    c_value = c.get_values()
+    c_derivative = [clamp(c.get_derivative()[0], -10.0, 10.0)]
+    c.set_values([c_value[0] - 0.001 * c_derivative[0]])
+
+print("Actual: ", actual)

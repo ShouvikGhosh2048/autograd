@@ -34,6 +34,8 @@ autodiff.exp_add.argtypes = [POINTER(CExpression), POINTER(CExpression)]
 autodiff.exp_add.restype = POINTER(CExpression)
 autodiff.exp_mul.argtypes = [POINTER(CExpression), POINTER(CExpression)]
 autodiff.exp_mul.restype = POINTER(CExpression)
+autodiff.exp_matmul.argtypes = [POINTER(CExpression), POINTER(CExpression)]
+autodiff.exp_matmul.restype = POINTER(CExpression)
 autodiff.exp_sub.argtypes = [POINTER(CExpression), POINTER(CExpression)]
 autodiff.exp_sub.restype = POINTER(CExpression)
 autodiff.free_exp.argtypes = [POINTER(CExpression)]
@@ -91,6 +93,10 @@ class Expression():
     def __mul__(self, other):
         assert isinstance(other, Expression)
         return Expression(autodiff.exp_mul(self._exp, other._exp), [self, other])
+    
+    def __matmul__(self, other):
+        assert isinstance(other, Expression)
+        return Expression(autodiff.exp_matmul(self._exp, other._exp), [self, other])
 
     def __sub__(self, other):
         assert isinstance(other, Expression)
