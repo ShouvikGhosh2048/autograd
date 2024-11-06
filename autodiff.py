@@ -1,13 +1,13 @@
 # https://www.digitalocean.com/community/tutorials/calling-c-functions-from-python
 # https://docs.python.org/3/library/ctypes.html
 
-# gcc autodiff_c.c -lm -fPIC -shared -o autodiff_c.so
+# gcc autodiff.c -lm -fPIC -shared -o autodiff_lib.so
 # https://stackoverflow.com/a/65356749
 # https://stackoverflow.com/a/13452473
 
 from ctypes import *
 
-autodiff = CDLL("./autodiff_c.so")
+autodiff = CDLL("./autodiff_lib.so")
 
 class Shape(Structure):
     _fields_ = [
