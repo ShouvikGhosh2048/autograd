@@ -164,8 +164,14 @@ expression* var(double *values, size_t *sizes, size_t sizes_length) {
     }
     // TODO: Maybe memcpy?
     var -> values = malloc(sizeof(double) * length);
-    for (size_t i = 0; i < length; i++) {
-        (var -> values)[i] = values[i];
+    if (values) {
+        for (size_t i = 0; i < length; i++) {
+            (var -> values)[i] = values[i];
+        }
+    } else {
+        for (size_t i = 0; i < length; i++) {
+            (var -> values)[i] = 0.0;
+        }
     }
     // TODO: Does calloc initialize double to 0.0?
     var -> derivative = malloc(sizeof(double) * length);
