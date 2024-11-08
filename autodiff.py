@@ -30,6 +30,8 @@ autodiff.var.argtypes = [POINTER(c_double), POINTER(c_size_t), c_size_t]
 autodiff.var.restype = POINTER(CExpression)
 autodiff.exp_sin.argtypes = [POINTER(CExpression)]
 autodiff.exp_sin.restype = POINTER(CExpression)
+autodiff.exp_relu.argtypes = [POINTER(CExpression)]
+autodiff.exp_relu.restype = POINTER(CExpression)
 autodiff.exp_add.argtypes = [POINTER(CExpression), POINTER(CExpression)]
 autodiff.exp_add.restype = POINTER(CExpression)
 autodiff.exp_mul.argtypes = [POINTER(CExpression), POINTER(CExpression)]
@@ -107,6 +109,9 @@ class Expression():
 
 def sin(exp: Expression):
     return Expression(autodiff.exp_sin(exp._exp), [exp])
+
+def relu(exp: Expression):
+    return Expression(autodiff.exp_relu(exp._exp), [exp])
 
 class Variable(Expression):
     def __init__(self, values):

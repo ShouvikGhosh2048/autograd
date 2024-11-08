@@ -8,6 +8,7 @@
 typedef enum {
     VAR,
     SIN,
+    RELU,
     ADD,
     MUL,
     MATMUL,
@@ -110,7 +111,7 @@ shape matmul_shape(shape shape1, shape shape2) {
         return res;
     }
 
-    if (shape1.sizes_length > 2 || shape2.sizes_length > 2) {
+    if (shape1.sizes_length > 2 && shape2.sizes_length > 2) {
         size_t i = shape1.sizes_length - 3;
         size_t j = shape2.sizes_length - 3;
         while(1) {
@@ -194,6 +195,21 @@ expression* exp_sin(expression* arg) {
     exp -> arg1 = arg;
     exp -> arg2 = NULL;
     exp -> type = SIN;
+    return exp;
+}
+
+expression* exp_relu(expression* arg) {
+    expression* exp = malloc(sizeof(expression));
+    exp -> values = NULL;
+    exp -> derivative = NULL;
+    exp -> shape.sizes_length = arg -> shape.sizes_length;
+    exp -> shape.sizes = malloc(sizeof(size_t) * arg -> shape.sizes_length);
+    for (size_t i = 0; i < arg -> shape.sizes_length; i++) {
+        exp -> shape.sizes[i] = arg -> shape.sizes[i];
+    }
+    exp -> arg1 = arg;
+    exp -> arg2 = NULL;
+    exp -> type = RELU;
     return exp;
 }
 
@@ -303,6 +319,13 @@ double* calc(expression* exp) {
             double *res = calc(exp -> arg1);
             for (size_t i = 0; i < length; i++) {
                 res[i] = sin(res[i]);
+            }
+            return res;
+        }
+        case RELU: {
+            double *res = calc(exp -> arg1);
+            for (size_t i = 0; i < length; i++) {
+                res[i] = (res[i] > 0) ? res[i] : 0;
             }
             return res;
         }
@@ -435,6 +458,15 @@ void backward_recursive(expression* exp, double* mult) {
             backward_recursive(exp -> arg1, mult);
             break;
         }
+        case RELU: {
+            double *arg1 = calc(exp -> arg1);
+            for (size_t i = 0; i < length; i++) {
+                mult[i] *= (arg1[i] > 0.0) ? 1.0 : 0.0;
+            }
+            free(arg1);
+            backward_recursive(exp -> arg1, mult);
+            break;
+        }
         case ADD: {
             double *arg1 = calc(exp -> arg1);
             size_t arg1_length = shape_total_length(exp -> arg1 -> shape);
@@ -459,7 +491,8 @@ void backward_recursive(expression* exp, double* mult) {
 
             backward_recursive(exp -> arg1, arg1_mult);
             backward_recursive(exp -> arg2, arg2_mult);
-            // TODO: Do I free arg_mult?
+            free(arg1_mult);
+            free(arg2_mult);
             break;
         }
         case MUL: {
@@ -486,6 +519,8 @@ void backward_recursive(expression* exp, double* mult) {
 
             backward_recursive(exp -> arg1, arg1_mult);
             backward_recursive(exp -> arg2, arg2_mult);
+            free(arg1_mult);
+            free(arg2_mult);
             break;
         }
         case MATMUL: {
@@ -559,6 +594,8 @@ void backward_recursive(expression* exp, double* mult) {
             backward_recursive(exp -> arg2, arg2_mult);
             free(arg1);
             free(arg2);
+            free(arg1_mult);
+            free(arg2_mult);
             break;
         }
         case SUB: {
@@ -585,6 +622,8 @@ void backward_recursive(expression* exp, double* mult) {
 
             backward_recursive(exp -> arg1, arg1_mult);
             backward_recursive(exp -> arg2, arg2_mult);
+            free(arg1_mult);
+            free(arg2_mult);
             break;
         }
     }
