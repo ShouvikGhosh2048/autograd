@@ -43,7 +43,7 @@ autodiff.exp_sub.restype = POINTER(CExpression)
 autodiff.free_exp.argtypes = [POINTER(CExpression)]
 autodiff.free_exp.restype = None
 autodiff.calc.argtypes = [POINTER(CExpression)]
-autodiff.calc.restype = POINTER(c_double)
+autodiff.calc.restype = None
 autodiff.free_pointer.argtypes = [c_void_p]
 autodiff.free_pointer.restype = None
 autodiff.backward.argtypes = [POINTER(CExpression)]
@@ -77,12 +77,11 @@ class Expression():
         for s in shape:
             total_length *= s
 
-        calc_res = autodiff.calc(self._exp)
+        autodiff.calc(self._exp)
         res = multi_dim_list(
-            [calc_res[i] for i in range(total_length)],
+            [self._exp.contents.values[i] for i in range(total_length)],
             shape
         )
-        autodiff.free_pointer(calc_res)
         return res
 
     def backward(self):

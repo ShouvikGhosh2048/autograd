@@ -104,25 +104,19 @@ for i in range(10000):
     print()
     loss.backward()
 
-    mult = 1.0
-    if i > 2500:
-        mult = 0.1
-    if i > 5000:
-        mult = 0.01
-    if i > 7500:
-        mult = 0.001
+    mult = 0.001
     values = w1.get_values()
     derivative = normalize(w1.get_derivative())
-    w1.set_values([[values[i][j] - 0.001 * derivative[i][j] for j in range(hidden_size)] for i in range(784)])
+    w1.set_values([[values[i][j] - mult * derivative[i][j] for j in range(hidden_size)] for i in range(784)])
     values = b1.get_values()
     derivative = normalize(b1.get_derivative())
-    b1.set_values([values[i] - 0.001 * derivative[i] for i in range(hidden_size)])
+    b1.set_values([values[i] - mult * derivative[i] for i in range(hidden_size)])
     values = w2.get_values()
     derivative = normalize(w2.get_derivative())
-    w2.set_values([values[i] - 0.001 * derivative[i] for i in range(hidden_size)])
+    w2.set_values([values[i] - mult * derivative[i] for i in range(hidden_size)])
     values = b2.get_values()
     derivative = normalize(b2.get_derivative())
-    b2.set_values([values[i] - 0.001 * derivative[i] for i in range(1)])
+    b2.set_values([values[i] - mult * derivative[i] for i in range(1)])
 
 pred = relu(test_x @ w1 + b1) @ w2 + b2
 print("Accuracy", sum([1 for val in (pred * test_y).calc() if val[0] > 0]) / N)

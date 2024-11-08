@@ -185,7 +185,17 @@ expression* var(double *values, size_t *sizes, size_t sizes_length) {
 
 expression* exp_sin(expression* arg) {
     expression* exp = malloc(sizeof(expression));
-    exp -> values = NULL;
+
+    size_t length = 1;
+    for (size_t i = 0; i < arg -> shape.sizes_length; i++) {
+        length *= arg -> shape.sizes[i];
+    }
+
+    exp -> values = malloc(sizeof(double) * length);
+    for (size_t i = 0; i < length; i++) {
+        exp -> values[i] = 0.0;
+    }
+
     exp -> derivative = NULL;
     exp -> shape.sizes_length = arg -> shape.sizes_length;
     exp -> shape.sizes = malloc(sizeof(size_t) * arg -> shape.sizes_length);
@@ -200,7 +210,17 @@ expression* exp_sin(expression* arg) {
 
 expression* exp_relu(expression* arg) {
     expression* exp = malloc(sizeof(expression));
-    exp -> values = NULL;
+
+    size_t length = 1;
+    for (size_t i = 0; i < arg -> shape.sizes_length; i++) {
+        length *= arg -> shape.sizes[i];
+    }
+
+    exp -> values = malloc(sizeof(double) * length);
+    for (size_t i = 0; i < length; i++) {
+        exp -> values[i] = 0.0;
+    }
+
     exp -> derivative = NULL;
     exp -> shape.sizes_length = arg -> shape.sizes_length;
     exp -> shape.sizes = malloc(sizeof(size_t) * arg -> shape.sizes_length);
@@ -221,7 +241,16 @@ expression* exp_add(expression* arg1, expression* arg2) {
     }
 
     expression* exp = malloc(sizeof(expression));
-    exp -> values = NULL;
+
+    size_t length = 1;
+    for (size_t i = 0; i < exp_shape.sizes_length; i++) {
+        length *= exp_shape.sizes[i];
+    }
+    exp -> values = malloc(sizeof(double) * length);
+    for (size_t i = 0; i < length; i++) {
+        exp -> values[i] = 0.0;
+    }
+
     exp -> derivative = NULL;
     exp -> shape = exp_shape;
     exp -> arg1 = arg1;
@@ -237,7 +266,16 @@ expression* exp_mul(expression* arg1, expression* arg2) {
     }
 
     expression* exp = malloc(sizeof(expression));
-    exp -> values = NULL;
+
+    size_t length = 1;
+    for (size_t i = 0; i < exp_shape.sizes_length; i++) {
+        length *= exp_shape.sizes[i];
+    }
+    exp -> values = malloc(sizeof(double) * length);
+    for (size_t i = 0; i < length; i++) {
+        exp -> values[i] = 0.0;
+    }
+
     exp -> derivative = NULL;
     exp -> shape = exp_shape;
     exp -> arg1 = arg1;
@@ -253,7 +291,16 @@ expression* exp_matmul(expression* arg1, expression* arg2) {
     }
 
     expression* exp = malloc(sizeof(expression));
-    exp -> values = NULL;
+
+    size_t length = 1;
+    for (size_t i = 0; i < exp_shape.sizes_length; i++) {
+        length *= exp_shape.sizes[i];
+    }
+    exp -> values = malloc(sizeof(double) * length);
+    for (size_t i = 0; i < length; i++) {
+        exp -> values[i] = 0.0;
+    }
+
     exp -> derivative = NULL;
     exp -> shape = exp_shape;
     exp -> arg1 = arg1;
@@ -269,7 +316,16 @@ expression* exp_sub(expression* arg1, expression* arg2) {
     }
 
     expression* exp = malloc(sizeof(expression));
-    exp -> values = NULL;
+
+    size_t length = 1;
+    for (size_t i = 0; i < exp_shape.sizes_length; i++) {
+        length *= exp_shape.sizes[i];
+    }
+    exp -> values = malloc(sizeof(double) * length);
+    for (size_t i = 0; i < length; i++) {
+        exp -> values[i] = 0.0;
+    }
+
     exp -> derivative = NULL;
     exp -> shape = exp_shape;
     exp -> arg1 = arg1;
@@ -279,8 +335,8 @@ expression* exp_sub(expression* arg1, expression* arg2) {
 }
 
 void free_exp(expression* exp) {
+    free(exp -> values);
     if (exp -> type == VAR) {
-        free(exp -> values);
         free(exp -> derivative);
     }
     free(exp -> shape.sizes);
@@ -301,7 +357,7 @@ size_t broadcast_index(size_t index, shape larger, shape smaller) {
 }
 
 // TODO: The length calculations can overflow, add checks for them.
-double* calc(expression* exp) {
+void calc(expression* exp) {
     size_t length = 1;
     for (size_t i = 0; i < exp -> shape.sizes_length; i++) {
         length *= exp -> shape.sizes[i];
@@ -309,56 +365,45 @@ double* calc(expression* exp) {
 
     switch (exp -> type) {
         case VAR: {
-            double *res = malloc(sizeof(double) * length);
-            for (size_t i = 0; i < length; i++) {
-                res[i] = (exp -> values)[i];
-            }
-            return res;
+            break;
         }
         case SIN: {
-            double *res = calc(exp -> arg1);
+            calc(exp -> arg1);
             for (size_t i = 0; i < length; i++) {
-                res[i] = sin(res[i]);
+                exp -> values[i] = sin(exp -> arg1 -> values[i]);
             }
-            return res;
+            break;
         }
         case RELU: {
-            double *res = calc(exp -> arg1);
+            calc(exp -> arg1);
             for (size_t i = 0; i < length; i++) {
-                res[i] = (res[i] > 0) ? res[i] : 0;
+                exp -> values[i] = (exp -> arg1 -> values[i] > 0) ? exp -> arg1 -> values[i] : 0;
             }
-            return res;
+            break;
         }
         case ADD: {
-            double *arg1 = calc(exp -> arg1);
-            double *arg2 = calc(exp -> arg2);
-            double *res = malloc(sizeof(double) * length);
+            calc(exp -> arg1);
+            calc(exp -> arg2);
             for (size_t i = 0; i < length; i++) {
                 size_t arg1_index = broadcast_index(i, exp -> shape, exp -> arg1 -> shape);
                 size_t arg2_index = broadcast_index(i, exp -> shape, exp -> arg2 -> shape);
-                res[i] = arg1[arg1_index] + arg2[arg2_index];
+                exp -> values[i] = exp -> arg1 -> values[arg1_index] + exp -> arg2 -> values[arg2_index];
             }
-            free(arg1);
-            free(arg2);
-            return res;
+            break;
         }
         case MUL: {
-            double *arg1 = calc(exp -> arg1);
-            double *arg2 = calc(exp -> arg2);
-            double *res = malloc(sizeof(double) * length);
+            calc(exp -> arg1);
+            calc(exp -> arg2);
             for (size_t i = 0; i < length; i++) {
                 size_t arg1_index = broadcast_index(i, exp -> shape, exp -> arg1 -> shape);
                 size_t arg2_index = broadcast_index(i, exp -> shape, exp -> arg2 -> shape);
-                res[i] = arg1[arg1_index] * arg2[arg2_index];
+                exp -> values[i] = exp -> arg1 -> values[arg1_index] * exp -> arg2 -> values[arg2_index];
             }
-            free(arg1);
-            free(arg2);
-            return res;
+            break;
         }
         case MATMUL: {
-            double *arg1 = calc(exp -> arg1);
-            double *arg2 = calc(exp -> arg2);
-            double *res = malloc(sizeof(double) * length);
+            calc(exp -> arg1);
+            calc(exp -> arg2);
 
             size_t one[] = { 1 };
             size_t a = 1, b = 1, c = 1;
@@ -405,29 +450,25 @@ double* calc(expression* exp) {
                 size_t arg2_index = broadcast_index(s, broadcast_res_shape, broadcast_shape2) * b * c;
                 for (size_t i = 0; i < a; i++) {
                     for (size_t j = 0; j < c; j++) {
-                        res[res_index + i * c + j] = 0.0;
+                        exp -> values[res_index + i * c + j] = 0.0;
                         for (size_t k = 0; k < b; k++) {
-                            res[res_index + i * c + j] += arg1[arg1_index + i * b + k] * arg2[arg2_index + k * c + j];
+                            exp -> values[res_index + i * c + j]
+                                += exp -> arg1 -> values[arg1_index + i * b + k] * exp -> arg2 -> values[arg2_index + k * c + j];
                         }
                     }
                 }
             }
-            free(arg1);
-            free(arg2);
-            return res;
+            break;
         }
         case SUB: {
-            double *arg1 = calc(exp -> arg1);
-            double *arg2 = calc(exp -> arg2);
-            double *res = malloc(sizeof(double) * length);
+            calc(exp -> arg1);
+            calc(exp -> arg2);
             for (size_t i = 0; i < length; i++) {
                 size_t arg1_index = broadcast_index(i, exp -> shape, exp -> arg1 -> shape);
                 size_t arg2_index = broadcast_index(i, exp -> shape, exp -> arg2 -> shape);
-                res[i] = arg1[arg1_index] - arg2[arg2_index];
+                exp -> values[i] = exp -> arg1 -> values[arg1_index] - exp -> arg2 -> values[arg2_index];
             }
-            free(arg1);
-            free(arg2);
-            return res;
+            break;
         }
     }
 }
@@ -450,31 +491,25 @@ void backward_recursive(expression* exp, double* mult) {
             break;
         }
         case SIN: {
-            double *arg1 = calc(exp -> arg1);
             for (size_t i = 0; i < length; i++) {
-                mult[i] *= cos(arg1[i]);
+                mult[i] *= cos(exp -> arg1 -> values[i]);
             }
-            free(arg1);
             backward_recursive(exp -> arg1, mult);
             break;
         }
         case RELU: {
-            double *arg1 = calc(exp -> arg1);
             for (size_t i = 0; i < length; i++) {
-                mult[i] *= (arg1[i] > 0.0) ? 1.0 : 0.0;
+                mult[i] *= (exp -> arg1 -> values[i] > 0.0) ? 1.0 : 0.0;
             }
-            free(arg1);
             backward_recursive(exp -> arg1, mult);
             break;
         }
         case ADD: {
-            double *arg1 = calc(exp -> arg1);
             size_t arg1_length = shape_total_length(exp -> arg1 -> shape);
             double *arg1_mult = malloc(sizeof(double) * arg1_length);
             for (size_t i = 0; i < arg1_length; i++) {
                 arg1_mult[i] = 0.0;
             }
-            double *arg2 = calc(exp -> arg2);
             size_t arg2_length = shape_total_length(exp -> arg2 -> shape);
             double *arg2_mult = malloc(sizeof(double) * arg2_length);
             for (size_t i = 0; i < arg2_length; i++) {
@@ -486,8 +521,6 @@ void backward_recursive(expression* exp, double* mult) {
                 arg1_mult[arg1_index] += mult[i];
                 arg2_mult[arg2_index] += mult[i];
             }
-            free(arg1);
-            free(arg2);
 
             backward_recursive(exp -> arg1, arg1_mult);
             backward_recursive(exp -> arg2, arg2_mult);
@@ -496,13 +529,11 @@ void backward_recursive(expression* exp, double* mult) {
             break;
         }
         case MUL: {
-            double *arg1 = calc(exp -> arg1);
             size_t arg1_length = shape_total_length(exp -> arg1 -> shape);
             double *arg1_mult = malloc(sizeof(double) * arg1_length);
             for (size_t i = 0; i < arg1_length; i++) {
                 arg1_mult[i] = 0.0;
             }
-            double *arg2 = calc(exp -> arg2);
             size_t arg2_length = shape_total_length(exp -> arg2 -> shape);
             double *arg2_mult = malloc(sizeof(double) * arg2_length);
             for (size_t i = 0; i < arg2_length; i++) {
@@ -511,11 +542,9 @@ void backward_recursive(expression* exp, double* mult) {
             for (size_t i = 0; i < length; i++) {
                 size_t arg1_index = broadcast_index(i, exp -> shape, exp -> arg1 -> shape);
                 size_t arg2_index = broadcast_index(i, exp -> shape, exp -> arg2 -> shape);
-                arg1_mult[arg1_index] += mult[i] * arg2[arg2_index];
-                arg2_mult[arg2_index] += mult[i] * arg1[arg1_index];
+                arg1_mult[arg1_index] += mult[i] * exp -> arg2 -> values[arg2_index];
+                arg2_mult[arg2_index] += mult[i] * exp -> arg1 -> values[arg1_index];
             }
-            free(arg1);
-            free(arg2);
 
             backward_recursive(exp -> arg1, arg1_mult);
             backward_recursive(exp -> arg2, arg2_mult);
@@ -524,8 +553,6 @@ void backward_recursive(expression* exp, double* mult) {
             break;
         }
         case MATMUL: {
-            double *arg1 = calc(exp -> arg1);
-            double *arg2 = calc(exp -> arg2);
             size_t arg1_length = shape_total_length(exp -> arg1 -> shape);
             double *arg1_mult = malloc(sizeof(double) * arg1_length);
             for (size_t i = 0; i < arg1_length; i++) {
@@ -583,8 +610,8 @@ void backward_recursive(expression* exp, double* mult) {
                 for (size_t i = 0; i < a; i++) {
                     for (size_t j = 0; j < c; j++) {
                         for (size_t k = 0; k < b; k++) {
-                            arg1_mult[arg1_index + i * b + k] += mult[res_index + i * c + j] * arg2[arg2_index + k * c + j];
-                            arg2_mult[arg2_index + k * c + j] += mult[res_index + i * c + j] * arg1[arg1_index + i * b + k];
+                            arg1_mult[arg1_index + i * b + k] += mult[res_index + i * c + j] * exp -> arg2 -> values[arg2_index + k * c + j];
+                            arg2_mult[arg2_index + k * c + j] += mult[res_index + i * c + j] * exp -> arg1 -> values[arg1_index + i * b + k];
                         }
                     }
                 }
@@ -592,20 +619,16 @@ void backward_recursive(expression* exp, double* mult) {
 
             backward_recursive(exp -> arg1, arg1_mult);
             backward_recursive(exp -> arg2, arg2_mult);
-            free(arg1);
-            free(arg2);
             free(arg1_mult);
             free(arg2_mult);
             break;
         }
         case SUB: {
-            double *arg1 = calc(exp -> arg1);
             size_t arg1_length = shape_total_length(exp -> arg1 -> shape);
             double *arg1_mult = malloc(sizeof(double) * arg1_length);
             for (size_t i = 0; i < arg1_length; i++) {
                 arg1_mult[i] = 0.0;
             }
-            double *arg2 = calc(exp -> arg2);
             size_t arg2_length = shape_total_length(exp -> arg2 -> shape);
             double *arg2_mult = malloc(sizeof(double) * arg2_length);
             for (size_t i = 0; i < arg2_length; i++) {
@@ -617,8 +640,6 @@ void backward_recursive(expression* exp, double* mult) {
                 arg1_mult[arg1_index] += mult[i];
                 arg2_mult[arg2_index] -= mult[i];
             }
-            free(arg1);
-            free(arg2);
 
             backward_recursive(exp -> arg1, arg1_mult);
             backward_recursive(exp -> arg2, arg2_mult);
@@ -639,6 +660,8 @@ void backward(expression* exp) {
     for (size_t i = 0; i < length; i++) {
         mult[i] = 1.0;
     }
+
+    calc(exp);
     backward_recursive(exp, mult);
     free(mult);
 }
