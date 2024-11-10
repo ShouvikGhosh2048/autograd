@@ -1,5 +1,5 @@
 import random
-from autodiff import Variable, relu
+from autodiff import Variable, relu, sigmoid, log
 import copy
 from math import sqrt
 
@@ -37,30 +37,28 @@ def flatten(img):
     return res
 
 N = 10000
-train_x = Variable(
-    [[flatten(random_circle())] for _ in range(N // 2)]
-    + [[flatten(random_plus())] for _ in range(N // 2)]
-)
-train_y = Variable([[-1.0]] * (N // 2) + [[1.0]] * (N // 2))
+BATCHES = 100
+train_x = [Variable(
+    [[flatten(random_circle())] for _ in range(N // (2 * BATCHES))]
+    + [[flatten(random_plus())] for _ in range(N // (2 * BATCHES))]
+) for _ in range(BATCHES)]
+train_y = Variable([[0.0]] * (N // (2 * BATCHES)) + [[1.0]] * (N // (2 * BATCHES)))
 test_x = Variable(
     [[flatten(random_circle())] for _ in range(N // 2)]
     + [[flatten(random_plus())] for _ in range(N // 2)]
 )
-test_y = Variable([[-1.0]] * (N // 2) + [[1.0]] * (N // 2))
+test_y = Variable([[0.0]] * (N // 2) + [[1.0]] * (N // 2))
 
 hidden_size = 50
 w1 = Variable([
-    [2 * random.random() - 1 for _ in range(hidden_size)]
+    [0.1 * (2 * random.random() - 1) for _ in range(hidden_size)]
     for _ in range(784)
 ])
 b1 = Variable([
-    2 * random.random() - 1 for _ in range(hidden_size)
+    0.1 * (2 * random.random() - 1) for _ in range(hidden_size)
 ])
-w2 = Variable([2 * random.random() - 1 for _ in range(hidden_size)])
-b2 = Variable([2 * random.random() - 1])
-
-pred = relu(train_x @ w1 + b1) @ w2 + b2
-loss = (pred - train_y) * (pred - train_y)
+w2 = Variable([0.1 * (2 * random.random() - 1) for _ in range(hidden_size)])
+b2 = Variable([0.1 * (2 * random.random() - 1)])
 
 def sum_of_squares(val):
     res = 0
@@ -91,32 +89,39 @@ def clamp(x, a, b):
     else:
         return x
 
-for i in range(10000):
-    w1.set_derivative([[0.0 for _ in range(hidden_size)] for _ in range(784)])
-    b1.set_derivative([0.0 for _ in range(hidden_size)])
-    w2.set_derivative([0.0 for _ in range(hidden_size)])
-    b2.set_derivative([0.0])
-
-    l = loss.calc()
+for i in range(10):
     print("Epoch", i)
-    print("Loss", sum([val[0] for val in l]))
-    print("Accuracy", sum([1 for val in (pred * train_y).calc() if val[0] > 0]) / N)
+    for batch in train_x:
+        w1.set_derivative([[0.0 for _ in range(hidden_size)] for _ in range(784)])
+        b1.set_derivative([0.0 for _ in range(hidden_size)])
+        w2.set_derivative([0.0 for _ in range(hidden_size)])
+        b2.set_derivative([0.0])
+
+        pred = sigmoid(relu(batch @ w1 + b1) @ w2 + b2)
+        loss = (train_y * log(pred) + (Variable([1.0]) - train_y) * log(Variable([1.0]) - pred)) * Variable([-1 / (N // BATCHES)])
+        loss.backward()
+
+        mult = 0.01
+        values = w1.get_values()
+        derivative = w1.get_derivative()
+        w1.set_values([[values[i][j] - mult * derivative[i][j] for j in range(hidden_size)] for i in range(784)])
+        values = b1.get_values()
+        derivative = b1.get_derivative()
+        b1.set_values([values[i] - mult * derivative[i] for i in range(hidden_size)])
+        values = w2.get_values()
+        derivative = w2.get_derivative()
+        w2.set_values([values[i] - mult * derivative[i] for i in range(hidden_size)])
+        values = b2.get_values()
+        derivative = b2.get_derivative()
+        b2.set_values([values[i] - mult * derivative[i] for i in range(1)])
+    
+    correct = 0
+    for batch in train_x:
+        pred = sigmoid(relu(batch @ w1 + b1) @ w2 + b2)
+        correct += sum([1 for (label, pred) in zip(train_y.calc(), pred.calc()) if (label[0] - 0.5) * (pred[0] - 0.5) > 0.0])
+    print("Accuracy", correct / N)
     print()
-    loss.backward()
 
-    mult = 0.001
-    values = w1.get_values()
-    derivative = normalize(w1.get_derivative())
-    w1.set_values([[values[i][j] - mult * derivative[i][j] for j in range(hidden_size)] for i in range(784)])
-    values = b1.get_values()
-    derivative = normalize(b1.get_derivative())
-    b1.set_values([values[i] - mult * derivative[i] for i in range(hidden_size)])
-    values = w2.get_values()
-    derivative = normalize(w2.get_derivative())
-    w2.set_values([values[i] - mult * derivative[i] for i in range(hidden_size)])
-    values = b2.get_values()
-    derivative = normalize(b2.get_derivative())
-    b2.set_values([values[i] - mult * derivative[i] for i in range(1)])
-
-pred = relu(test_x @ w1 + b1) @ w2 + b2
-print("Accuracy", sum([1 for val in (pred * test_y).calc() if val[0] > 0]) / N)
+pred = sigmoid(relu(test_x @ w1 + b1) @ w2 + b2)
+correct = sum([1 for (label, pred) in zip(test_y.calc(), pred.calc()) if (label[0] - 0.5) * (pred[0] - 0.5) > 0.0])
+print("Accuracy", correct / N)

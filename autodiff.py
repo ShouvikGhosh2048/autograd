@@ -32,6 +32,10 @@ autodiff.exp_sin.argtypes = [POINTER(CExpression)]
 autodiff.exp_sin.restype = POINTER(CExpression)
 autodiff.exp_relu.argtypes = [POINTER(CExpression)]
 autodiff.exp_relu.restype = POINTER(CExpression)
+autodiff.exp_sigmoid.argtypes = [POINTER(CExpression)]
+autodiff.exp_sigmoid.restype = POINTER(CExpression)
+autodiff.exp_log.argtypes = [POINTER(CExpression)]
+autodiff.exp_log.restype = POINTER(CExpression)
 autodiff.exp_add.argtypes = [POINTER(CExpression), POINTER(CExpression)]
 autodiff.exp_add.restype = POINTER(CExpression)
 autodiff.exp_mul.argtypes = [POINTER(CExpression), POINTER(CExpression)]
@@ -69,6 +73,10 @@ class Expression():
     def __init__(self, _exp, _dependencies):
         self._exp = _exp
         self._dependencies = _dependencies
+    
+    def get_shape(self):
+        shape_sizes_length = self._exp.contents.shape.sizes_length
+        return [self._exp.contents.shape.sizes[i] for i in range(shape_sizes_length)]
 
     def calc(self) -> list[float]:
         shape_sizes_length = self._exp.contents.shape.sizes_length
@@ -111,6 +119,12 @@ def sin(exp: Expression):
 
 def relu(exp: Expression):
     return Expression(autodiff.exp_relu(exp._exp), [exp])
+
+def sigmoid(exp: Expression):
+    return Expression(autodiff.exp_sigmoid(exp._exp), [exp])
+
+def log(exp: Expression):
+    return Expression(autodiff.exp_log(exp._exp), [exp])
 
 class Variable(Expression):
     def __init__(self, values):
