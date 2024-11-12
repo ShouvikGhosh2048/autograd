@@ -6,11 +6,12 @@
 // https://stackoverflow.com/a/19188749
 
 typedef enum {
-    VAR,
+    TENSOR,
     SIN,
     RELU,
     SIGMOID,
     LOG,
+    POWER,
     ADD,
     MUL,
     MATMUL,
@@ -150,45 +151,47 @@ typedef struct expression {
     shape shape;
     struct expression *arg1;
     struct expression *arg2;
+    double arg3;
     expression_type type;
 } expression;
 
-expression* var(double *values, size_t *sizes, size_t sizes_length) {
+expression* tensor(double *values, size_t *sizes, size_t sizes_length) {
     if (sizes_length == 0) {
         return NULL;
     }
 
-    expression* var = malloc(sizeof(expression));
+    expression* tensor = malloc(sizeof(expression));
 
     size_t length = 1;
     for (size_t i = 0; i < sizes_length; i++) {
         length *= sizes[i];
     }
     // TODO: Maybe memcpy?
-    var -> values = malloc(sizeof(double) * length);
+    tensor -> values = malloc(sizeof(double) * length);
     if (values) {
         for (size_t i = 0; i < length; i++) {
-            (var -> values)[i] = values[i];
+            (tensor -> values)[i] = values[i];
         }
     } else {
         for (size_t i = 0; i < length; i++) {
-            (var -> values)[i] = 0.0;
+            (tensor -> values)[i] = 0.0;
         }
     }
     // TODO: Does calloc initialize double to 0.0?
-    var -> derivative = malloc(sizeof(double) * length);
+    tensor -> derivative = malloc(sizeof(double) * length);
     for (size_t i = 0; i < length; i++) {
-        (var -> derivative)[i] = 0.0;
+        (tensor -> derivative)[i] = 0.0;
     }
-    var -> shape.sizes_length = sizes_length;
-    var -> shape.sizes = malloc(sizeof(size_t) * sizes_length);
+    tensor -> shape.sizes_length = sizes_length;
+    tensor -> shape.sizes = malloc(sizeof(size_t) * sizes_length);
     for (size_t i = 0; i < sizes_length; i++) {
-        var -> shape.sizes[i] = sizes[i];
+        tensor -> shape.sizes[i] = sizes[i];
     }
-    var -> arg1 = NULL;
-    var -> arg2 = NULL;
-    var -> type = VAR;
-    return var;
+    tensor -> arg1 = NULL;
+    tensor -> arg2 = NULL;
+    tensor -> arg3 = 0.0;
+    tensor -> type = TENSOR;
+    return tensor;
 }
 
 expression* exp_sin(expression* arg) {
@@ -212,6 +215,7 @@ expression* exp_sin(expression* arg) {
     }
     exp -> arg1 = arg;
     exp -> arg2 = NULL;
+    exp -> arg3 = 0.0;
     exp -> type = SIN;
     return exp;
 }
@@ -237,6 +241,7 @@ expression* exp_relu(expression* arg) {
     }
     exp -> arg1 = arg;
     exp -> arg2 = NULL;
+    exp -> arg3 = 0.0;
     exp -> type = RELU;
     return exp;
 }
@@ -262,6 +267,7 @@ expression* exp_sigmoid(expression* arg) {
     }
     exp -> arg1 = arg;
     exp -> arg2 = NULL;
+    exp -> arg3 = 0.0;
     exp -> type = SIGMOID;
     return exp;
 }
@@ -287,7 +293,34 @@ expression* exp_log(expression* arg) {
     }
     exp -> arg1 = arg;
     exp -> arg2 = NULL;
+    exp -> arg3 = 0.0;
     exp -> type = LOG;
+    return exp;
+}
+
+expression* exp_power(expression* arg, double exponent) {
+    expression* exp = malloc(sizeof(expression));
+
+    size_t length = 1;
+    for (size_t i = 0; i < arg -> shape.sizes_length; i++) {
+        length *= arg -> shape.sizes[i];
+    }
+
+    exp -> values = malloc(sizeof(double) * length);
+    for (size_t i = 0; i < length; i++) {
+        exp -> values[i] = 0.0;
+    }
+
+    exp -> derivative = NULL;
+    exp -> shape.sizes_length = arg -> shape.sizes_length;
+    exp -> shape.sizes = malloc(sizeof(size_t) * arg -> shape.sizes_length);
+    for (size_t i = 0; i < arg -> shape.sizes_length; i++) {
+        exp -> shape.sizes[i] = arg -> shape.sizes[i];
+    }
+    exp -> arg1 = arg;
+    exp -> arg2 = NULL;
+    exp -> arg3 = exponent;
+    exp -> type = POWER;
     return exp;
 }
 
@@ -313,6 +346,7 @@ expression* exp_add(expression* arg1, expression* arg2) {
     exp -> shape = exp_shape;
     exp -> arg1 = arg1;
     exp -> arg2 = arg2;
+    exp -> arg3 = 0.0;
     exp -> type = ADD;
     return exp;
 }
@@ -338,6 +372,7 @@ expression* exp_mul(expression* arg1, expression* arg2) {
     exp -> shape = exp_shape;
     exp -> arg1 = arg1;
     exp -> arg2 = arg2;
+    exp -> arg3 = 0.0;
     exp -> type = MUL;
     return exp;
 }
@@ -363,6 +398,7 @@ expression* exp_matmul(expression* arg1, expression* arg2) {
     exp -> shape = exp_shape;
     exp -> arg1 = arg1;
     exp -> arg2 = arg2;
+    exp -> arg3 = 0.0;
     exp -> type = MATMUL;
     return exp;
 }
@@ -388,13 +424,14 @@ expression* exp_sub(expression* arg1, expression* arg2) {
     exp -> shape = exp_shape;
     exp -> arg1 = arg1;
     exp -> arg2 = arg2;
+    exp -> arg3 = 0.0;
     exp -> type = SUB;
     return exp;
 }
 
 void free_exp(expression* exp) {
     free(exp -> values);
-    if (exp -> type == VAR) {
+    if (exp -> type == TENSOR) {
         free(exp -> derivative);
     }
     free(exp -> shape.sizes);
@@ -422,7 +459,7 @@ void calc(expression* expr) {
     }
 
     switch (expr -> type) {
-        case VAR: {
+        case TENSOR: {
             break;
         }
         case SIN: {
@@ -450,6 +487,13 @@ void calc(expression* expr) {
             calc(expr -> arg1);
             for (size_t i = 0; i < length; i++) {
                 expr -> values[i] = (expr -> arg1 -> values[i] > 0) ? log(expr -> arg1 -> values[i]) : -INFINITY;
+            }
+            break;
+        }
+        case POWER: {
+            calc(expr -> arg1);
+            for (size_t i = 0; i < length; i++) {
+                expr -> values[i] = pow(expr -> arg1 -> values[i], expr -> arg3);
             }
             break;
         }
@@ -556,7 +600,7 @@ void backward_recursive(expression* expr, double* mult) {
     }
 
     switch (expr -> type) {
-        case VAR: {
+        case TENSOR: {
             for (size_t i = 0; i < length; i++) {
                 expr -> derivative[i] += mult[i];
             }
@@ -589,6 +633,14 @@ void backward_recursive(expression* expr, double* mult) {
                 // TODO: What should I do for negative values?
                 mult[i] *= 1 / expr -> arg1 -> values[i];
             }
+            backward_recursive(expr -> arg1, mult);
+            break;
+        }
+        case POWER: {
+            for (size_t i = 0; i < length; i++) {
+                mult[i] *= expr -> arg3 * pow(expr -> arg1 -> values[i], expr -> arg3 - 1.0);
+            }
+
             backward_recursive(expr -> arg1, mult);
             break;
         }
@@ -752,4 +804,22 @@ void backward(expression* exp) {
     calc(exp);
     backward_recursive(exp, mult);
     free(mult);
+}
+
+void set_derivative_zero(expression* expr) {
+    if (expr -> type == TENSOR) {
+        size_t length = shape_total_length(expr -> shape);
+        for (size_t i = 0; i < length; i++) {
+            expr -> derivative[i] = 0.0;
+        }
+    }
+}
+
+void derivative_step(expression* expr, double multiplier) {
+    if (expr -> type == TENSOR) {
+        size_t length = shape_total_length(expr -> shape);
+        for (size_t i = 0; i < length; i++) {
+            expr -> values[i] += multiplier * expr -> derivative[i];
+        }
+    }
 }

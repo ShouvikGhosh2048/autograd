@@ -1,11 +1,8 @@
 import random
-from autodiff import Variable, relu, sigmoid, log
-import copy
-from math import sqrt
+from autodiff import Tensor, relu, sigmoid, log, flatten
 
 def random_circle():
     img = [[1.0 for _ in range(28)] for _ in range(28)]
-
     cx = 28 * random.random()
     cy = 28 * random.random()
     r = 5 + 5 * random.random()
@@ -17,7 +14,6 @@ def random_circle():
 
 def random_plus():
     img = [[1.0 for _ in range(28)] for _ in range(28)]
-
     a = random.randint(1, 26)
     b = random.randint(1, 26)
     for i in range(28):
@@ -29,99 +25,55 @@ def random_plus():
         img[i][b+1] = 0.0
     return img
 
-def flatten(img):
-    res = []
-    for row in img:
-        for val in row:
-            res.append(val)
-    return res
-
 N = 10000
 BATCHES = 100
-train_x = [Variable(
-    [[flatten(random_circle())] for _ in range(N // (2 * BATCHES))]
-    + [[flatten(random_plus())] for _ in range(N // (2 * BATCHES))]
+train_x = [Tensor(
+    [flatten(random_circle()) for _ in range(N // (2 * BATCHES))]
+    + [flatten(random_plus()) for _ in range(N // (2 * BATCHES))]
 ) for _ in range(BATCHES)]
-train_y = Variable([[0.0]] * (N // (2 * BATCHES)) + [[1.0]] * (N // (2 * BATCHES)))
-test_x = Variable(
-    [[flatten(random_circle())] for _ in range(N // 2)]
-    + [[flatten(random_plus())] for _ in range(N // 2)]
+train_y = Tensor([0.0] * (N // (2 * BATCHES)) + [1.0] * (N // (2 * BATCHES)))
+test_x = Tensor(
+    [flatten(random_circle()) for _ in range(N // 2)]
+    + [flatten(random_plus()) for _ in range(N // 2)]
 )
-test_y = Variable([[0.0]] * (N // 2) + [[1.0]] * (N // 2))
+test_y = Tensor([0.0] * (N // 2) + [1.0] * (N // 2))
 
 hidden_size = 50
-w1 = Variable([
+w1 = Tensor([
     [0.1 * (2 * random.random() - 1) for _ in range(hidden_size)]
     for _ in range(784)
 ])
-b1 = Variable([
+b1 = Tensor([
     0.1 * (2 * random.random() - 1) for _ in range(hidden_size)
 ])
-w2 = Variable([0.1 * (2 * random.random() - 1) for _ in range(hidden_size)])
-b2 = Variable([0.1 * (2 * random.random() - 1)])
-
-def sum_of_squares(val):
-    res = 0
-    for elem in val:
-        if type(elem) == list:
-            res += sum_of_squares(elem)
-        else:
-            res += elem ** 2
-    return res
-
-def divide(val, c):
-    for i in range(len(val)):
-        if type(val[i]) == list:
-            divide(val[i], c)
-        else:
-            val[i] /= c
-
-def normalize(val):
-    val = copy.deepcopy(val)
-    divide(val, sqrt(sum_of_squares(val)))
-    return val
-
-def clamp(x, a, b):
-    if x < a:
-        return a
-    elif b < x:
-        return b
-    else:
-        return x
+w2 = Tensor([0.1 * (2 * random.random() - 1) for _ in range(hidden_size)])
+b2 = Tensor([0.1 * (2 * random.random() - 1)])
 
 for i in range(10):
     print("Epoch", i)
     for batch in train_x:
-        w1.set_derivative([[0.0 for _ in range(hidden_size)] for _ in range(784)])
-        b1.set_derivative([0.0 for _ in range(hidden_size)])
-        w2.set_derivative([0.0 for _ in range(hidden_size)])
-        b2.set_derivative([0.0])
+        w1.set_derivative_zero()
+        b1.set_derivative_zero()
+        w2.set_derivative_zero()
+        b2.set_derivative_zero()
 
         pred = sigmoid(relu(batch @ w1 + b1) @ w2 + b2)
-        loss = (train_y * log(pred) + (Variable([1.0]) - train_y) * log(Variable([1.0]) - pred)) * Variable([-1 / (N // BATCHES)])
+        loss = (train_y * log(pred) + (Tensor([1.0]) - train_y) * log(Tensor([1.0]) - pred)) * Tensor([-1 / (N // BATCHES)])
         loss.backward()
 
-        mult = 0.01
-        values = w1.get_values()
-        derivative = w1.get_derivative()
-        w1.set_values([[values[i][j] - mult * derivative[i][j] for j in range(hidden_size)] for i in range(784)])
-        values = b1.get_values()
-        derivative = b1.get_derivative()
-        b1.set_values([values[i] - mult * derivative[i] for i in range(hidden_size)])
-        values = w2.get_values()
-        derivative = w2.get_derivative()
-        w2.set_values([values[i] - mult * derivative[i] for i in range(hidden_size)])
-        values = b2.get_values()
-        derivative = b2.get_derivative()
-        b2.set_values([values[i] - mult * derivative[i] for i in range(1)])
+        mult = -0.01
+        w1.derivative_step(mult)
+        b1.derivative_step(mult)
+        w2.derivative_step(mult)
+        b2.derivative_step(mult)
     
     correct = 0
     for batch in train_x:
         pred = sigmoid(relu(batch @ w1 + b1) @ w2 + b2)
-        correct += sum([1 for (label, pred) in zip(train_y.calc(), pred.calc()) if (label[0] - 0.5) * (pred[0] - 0.5) > 0.0])
+        correct += sum([1 for (label, pred) in zip(train_y.calc(), pred.calc()) if (label - 0.5) * (pred - 0.5) > 0.0])
     print("Accuracy", correct / N)
     print()
 
 pred = sigmoid(relu(test_x @ w1 + b1) @ w2 + b2)
-correct = sum([1 for (label, pred) in zip(test_y.calc(), pred.calc()) if (label[0] - 0.5) * (pred[0] - 0.5) > 0.0])
+correct = sum([1 for (label, pred) in zip(test_y.calc(), pred.calc()) if (label - 0.5) * (pred - 0.5) > 0.0])
 print("Accuracy", correct / N)

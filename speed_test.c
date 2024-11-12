@@ -11,17 +11,17 @@ int main(void) {
     {
         // https://www.geeksforgeeks.org/how-arrays-are-passed-to-functions-in-cc/
         size_t train_x_dimensions[] = {10000, 1, 784};
-        expression* train_x = var(NULL, train_x_dimensions, 3);
+        expression* train_x = tensor(NULL, train_x_dimensions, 3);
         size_t train_y_dimensions[] = {10000, 1};
-        expression* train_y = var(NULL, train_y_dimensions, 2);
+        expression* train_y = tensor(NULL, train_y_dimensions, 2);
         size_t w1_dimensions[] = {784, 50};
-        expression* w1 = var(NULL, w1_dimensions, 2);
+        expression* w1 = tensor(NULL, w1_dimensions, 2);
         size_t b1_dimensions[] = {50};
-        expression* b1 = var(NULL, b1_dimensions, 1);
+        expression* b1 = tensor(NULL, b1_dimensions, 1);
         size_t w2_dimensions[] = {50};
-        expression* w2 = var(NULL, w2_dimensions, 1);
+        expression* w2 = tensor(NULL, w2_dimensions, 1);
         size_t b2_dimensions[] = {1};
-        expression* b2 = var(NULL, b2_dimensions, 1);
+        expression* b2 = tensor(NULL, b2_dimensions, 1);
 
         expression* res = exp_matmul(train_x, w1);
         res = exp_add(res, b1);
