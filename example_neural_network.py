@@ -5,7 +5,7 @@ def random_circle():
     img = [[1.0 for _ in range(28)] for _ in range(28)]
     cx = 28 * random.random()
     cy = 28 * random.random()
-    r = 5 + 5 * random.random()
+    r = 5 + 10 * random.random()
     for i in range(28):
         for j in range(28):
             if (i - cx) ** 2 + (j - cy) ** 2 < r**2:
@@ -16,10 +16,11 @@ def random_plus():
     img = [[1.0 for _ in range(28)] for _ in range(28)]
     a = random.randint(1, 26)
     b = random.randint(1, 26)
-    for i in range(28):
+    for i in range(random.randint(0, b-1), random.randint(b+2, 28)):
         img[a-1][i] = 0.0
         img[a][i] = 0.0
         img[a+1][i] = 0.0
+    for i in range(random.randint(0, a-1), random.randint(a+2, 28)):
         img[i][b-1] = 0.0
         img[i][b] = 0.0
         img[i][b+1] = 0.0
@@ -38,7 +39,7 @@ test_x = Tensor(
 )
 test_y = Tensor([0.0] * (N // 2) + [1.0] * (N // 2))
 
-hidden_size = 50
+hidden_size = 10
 w1 = Tensor([
     [0.1 * (2 * random.random() - 1) for _ in range(hidden_size)]
     for _ in range(784)
@@ -49,7 +50,7 @@ b1 = Tensor([
 w2 = Tensor([0.1 * (2 * random.random() - 1) for _ in range(hidden_size)])
 b2 = Tensor([0.1 * (2 * random.random() - 1)])
 
-for i in range(10):
+for i in range(20):
     print("Epoch", i)
     for batch in train_x:
         w1.set_derivative_zero()
