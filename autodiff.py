@@ -23,6 +23,7 @@ CExpression._fields_ = [
     ("shape", Shape),
     ("arg1", POINTER(CExpression)),
     ("arg2", POINTER(CExpression)),
+    ("arg3", c_double),
     ("type", c_int), # TODO: Is there a way to use enum?
 ]
 
@@ -50,8 +51,6 @@ autodiff.free_exp.argtypes = [POINTER(CExpression)]
 autodiff.free_exp.restype = None
 autodiff.calc.argtypes = [POINTER(CExpression)]
 autodiff.calc.restype = None
-autodiff.free_pointer.argtypes = [c_void_p]
-autodiff.free_pointer.restype = None
 autodiff.backward.argtypes = [POINTER(CExpression)]
 autodiff.backward.restype = None
 autodiff.set_derivative_zero.argtypes = [POINTER(CExpression)]
@@ -112,6 +111,7 @@ def can_matmul(shape1, shape2):
 
 class Expression():
     def __init__(self, _exp, _dependencies):
+        assert _exp, "Null pointer"
         self._exp = _exp
         self._dependencies = _dependencies
     
@@ -160,7 +160,8 @@ class Expression():
         return Expression(autodiff.exp_sub(self._exp, other._exp), [self, other])
     
     def __del__(self):
-        autodiff.free_exp(self._exp)
+        if self._exp:
+            autodiff.free_exp(self._exp)
 
 def sin(exp: Expression):
     return Expression(autodiff.exp_sin(exp._exp), [exp])
@@ -186,6 +187,7 @@ class Tensor(Expression):
             (c_size_t * len(values_shape))(*values_shape),
             c_size_t(len(values_shape)),
         )
+        assert self._exp, "Null pointer"
         self._dependencies = []
 
     def get_values(self):

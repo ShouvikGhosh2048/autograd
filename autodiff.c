@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <stdint.h>
+#include <string.h>
 
 // https://stackoverflow.com/a/19188730
 // https://stackoverflow.com/a/19188749
@@ -23,6 +25,7 @@ typedef struct {
     size_t sizes_length;
 } shape;
 
+// Can overflow depending on sizes.
 size_t shape_total_length(shape shape) {
     size_t length = 1;
     for (size_t i = 0; i < shape.sizes_length; i++) {
@@ -39,12 +42,16 @@ size_t max_size(size_t a, size_t b) {
     }
 }
 
-// Returns a new broadcast shape, sizes will be NULL if not possible.
+// Returns the broadcast shape, sizes will be NULL if not possible.
+// Doesn't check if the total length fits in size_t.
 shape broadcast_shape(shape shape1, shape shape2) {
+    shape res = { NULL };
+    if (shape1.sizes == NULL || shape2.sizes == NULL || shape1.sizes_length == 0 || shape2.sizes_length == 0) {
+        return res;
+    }
     size_t i = shape1.sizes_length - 1;
     size_t j = shape2.sizes_length - 1;
 
-    shape res = { NULL };
     while(1) {
         if (shape1.sizes[i] != shape2.sizes[j] && shape1.sizes[i] != 1 && shape2.sizes[j] != 1) {
             return res;
@@ -58,20 +65,31 @@ shape broadcast_shape(shape shape1, shape shape2) {
 
     res.sizes_length = max_size(shape1.sizes_length, shape2.sizes_length);
     res.sizes = malloc(sizeof(size_t) * res.sizes_length);
+    if (res.sizes == NULL) {
+        res.sizes_length = 0;
+        return res;
+    }
     for (size_t i = 0; i < res.sizes_length; i++) {
-        res.sizes[res.sizes_length - 1 - i] = 1;
+        res.sizes[res.sizes_length-1-i] = 1;
         if (i < shape1.sizes_length) {
-            res.sizes[res.sizes_length - 1 - i] = max_size(res.sizes[res.sizes_length - 1 - i], shape1.sizes[shape1.sizes_length - 1 - i]);
+            res.sizes[res.sizes_length-1-i] = max_size(res.sizes[res.sizes_length-1-i], shape1.sizes[shape1.sizes_length-1-i]);
         }
         if (i < shape2.sizes_length) {
-            res.sizes[res.sizes_length - 1 - i] = max_size(res.sizes[res.sizes_length - 1 - i], shape2.sizes[shape2.sizes_length - 1 - i]);
+            res.sizes[res.sizes_length-1-i] = max_size(res.sizes[res.sizes_length-1-i], shape2.sizes[shape2.sizes_length-1-i]);
         }
     }
     return res;
 }
 
+// Returns the matmul shape, sizes will be NULL if not possible.
+// Doesn't check if the total length fits in size_t.
 shape matmul_shape(shape shape1, shape shape2) {
     shape res = { NULL };
+    if (shape1.sizes == NULL || shape2.sizes == NULL || shape1.sizes_length == 0 || shape2.sizes_length == 0) {
+        return res;
+    }
+
+    // Handle the case where one of the shapes is 1D.
     if (shape1.sizes_length == 1) {
         if (shape2.sizes_length == 1) {
             if (shape1.sizes[0] != shape2.sizes[0]) {
@@ -79,7 +97,11 @@ shape matmul_shape(shape shape1, shape shape2) {
             }
             else {
                 res.sizes_length = 1;
-                res.sizes = malloc(sizeof(size_t) * 1);
+                res.sizes = malloc(sizeof(size_t) * res.sizes_length);
+                if (res.sizes == NULL) {
+                    res.sizes_length = 0;
+                    return res;
+                }
                 res.sizes[0] = 1;
                 return res;
             }
@@ -89,6 +111,10 @@ shape matmul_shape(shape shape1, shape shape2) {
             } else {
                 res.sizes_length = shape2.sizes_length - 1;
                 res.sizes = malloc(sizeof(size_t) * res.sizes_length);
+                if (res.sizes == NULL) {
+                    res.sizes_length = 0;
+                    return res;
+                }
                 for (size_t i = 0; i < res.sizes_length - 1; i++) {
                     res.sizes[i] = shape2.sizes[i];
                 }
@@ -103,6 +129,10 @@ shape matmul_shape(shape shape1, shape shape2) {
         } else {
             res.sizes_length = shape1.sizes_length - 1;
             res.sizes = malloc(sizeof(size_t) * res.sizes_length);
+            if (res.sizes == NULL) {
+                res.sizes_length = 0;
+                return res;
+            }
             for (size_t i = 0; i < res.sizes_length; i++) {
                 res.sizes[i] = shape1.sizes[i];
             }
@@ -114,6 +144,7 @@ shape matmul_shape(shape shape1, shape shape2) {
         return res;
     }
 
+    // Check broadcasting.
     if (shape1.sizes_length > 2 && shape2.sizes_length > 2) {
         size_t i = shape1.sizes_length - 3;
         size_t j = shape2.sizes_length - 3;
@@ -131,15 +162,19 @@ shape matmul_shape(shape shape1, shape shape2) {
 
     res.sizes_length = max_size(shape1.sizes_length, shape2.sizes_length);
     res.sizes = malloc(sizeof(size_t) * res.sizes_length);
-    res.sizes[res.sizes_length - 2] = shape1.sizes[shape1.sizes_length - 2];
-    res.sizes[res.sizes_length - 1] = shape2.sizes[shape2.sizes_length - 1];
+    if (res.sizes == NULL) {
+        res.sizes_length = 0;
+        return res;
+    }
+    res.sizes[res.sizes_length-2] = shape1.sizes[shape1.sizes_length-2];
+    res.sizes[res.sizes_length-1] = shape2.sizes[shape2.sizes_length-1];
     for (size_t i = 2; i < res.sizes_length; i++) {
-        res.sizes[res.sizes_length - 1 - i] = 1;
+        res.sizes[res.sizes_length-1-i] = 1;
         if (i < shape1.sizes_length) {
-            res.sizes[res.sizes_length - 1 - i] = max_size(res.sizes[res.sizes_length - 1 - i], shape1.sizes[shape1.sizes_length - 1 - i]);
+            res.sizes[res.sizes_length-1-i] = max_size(res.sizes[res.sizes_length-1-i], shape1.sizes[shape1.sizes_length-1-i]);
         }
         if (i < shape2.sizes_length) {
-            res.sizes[res.sizes_length - 1 - i] = max_size(res.sizes[res.sizes_length - 1 - i], shape2.sizes[shape2.sizes_length - 1 - i]);
+            res.sizes[res.sizes_length-1-i] = max_size(res.sizes[res.sizes_length-1-i], shape2.sizes[shape2.sizes_length-1-i]);
         }
     }
     return res;
@@ -151,42 +186,63 @@ typedef struct expression {
     shape shape;
     struct expression *arg1;
     struct expression *arg2;
+    // Additional argument for expression, for example the exponent for power.
     double arg3;
     expression_type type;
 } expression;
 
+// values is allowed to be NULL, will be zero initialized if so.
 expression* tensor(double *values, size_t *sizes, size_t sizes_length) {
-    if (sizes_length == 0) {
+    if (sizes == NULL || sizes_length == 0) {
         return NULL;
+    }
+    size_t length = 1;
+    for (size_t i = 0; i < sizes_length; i++) {
+        // Non zero size + overflow check.
+        if (sizes[i] == 0 || length > SIZE_MAX / sizes[i]) {
+            return NULL;
+        }
+        length *= sizes[i];
     }
 
     expression* tensor = malloc(sizeof(expression));
-
-    size_t length = 1;
-    for (size_t i = 0; i < sizes_length; i++) {
-        length *= sizes[i];
+    if (tensor == NULL) {
+        return NULL;
     }
-    // TODO: Maybe memcpy?
+
     tensor -> values = malloc(sizeof(double) * length);
+    if (tensor -> values == NULL) {
+        free(tensor);
+        return NULL;
+    }
     if (values) {
-        for (size_t i = 0; i < length; i++) {
-            (tensor -> values)[i] = values[i];
-        }
+        memcpy(tensor -> values, values, sizeof(double) * length);
     } else {
         for (size_t i = 0; i < length; i++) {
             (tensor -> values)[i] = 0.0;
         }
     }
-    // TODO: Does calloc initialize double to 0.0?
+
     tensor -> derivative = malloc(sizeof(double) * length);
+    if (tensor -> derivative == NULL) {
+        free(tensor -> values);
+        free(tensor);
+        return NULL;
+    }
     for (size_t i = 0; i < length; i++) {
         (tensor -> derivative)[i] = 0.0;
     }
+
     tensor -> shape.sizes_length = sizes_length;
     tensor -> shape.sizes = malloc(sizeof(size_t) * sizes_length);
-    for (size_t i = 0; i < sizes_length; i++) {
-        tensor -> shape.sizes[i] = sizes[i];
+    if (tensor -> shape.sizes == NULL) {
+        free(tensor -> derivative);
+        free(tensor -> values);
+        free(tensor);
+        return NULL;
     }
+    memcpy(tensor -> shape.sizes, sizes, sizeof(size_t) * sizes_length);
+
     tensor -> arg1 = NULL;
     tensor -> arg2 = NULL;
     tensor -> arg3 = 0.0;
@@ -194,239 +250,128 @@ expression* tensor(double *values, size_t *sizes, size_t sizes_length) {
     return tensor;
 }
 
-expression* exp_sin(expression* arg) {
-    expression* exp = malloc(sizeof(expression));
-
-    size_t length = 1;
-    for (size_t i = 0; i < arg -> shape.sizes_length; i++) {
-        length *= arg -> shape.sizes[i];
+// doesn't check whether the type is unary.
+expression* exp_unary(expression* arg1, double arg3, expression_type type) {
+    if (arg1 == NULL) {
+        return NULL;
     }
 
+    expression* exp = malloc(sizeof(expression));
+    if (exp == NULL) {
+        return NULL;
+    }
+
+    size_t length = shape_total_length(arg1 -> shape);
+
     exp -> values = malloc(sizeof(double) * length);
+    if (exp -> values == NULL) {
+        free(exp);
+        return NULL;
+    }
     for (size_t i = 0; i < length; i++) {
         exp -> values[i] = 0.0;
     }
-
     exp -> derivative = NULL;
-    exp -> shape.sizes_length = arg -> shape.sizes_length;
-    exp -> shape.sizes = malloc(sizeof(size_t) * arg -> shape.sizes_length);
-    for (size_t i = 0; i < arg -> shape.sizes_length; i++) {
-        exp -> shape.sizes[i] = arg -> shape.sizes[i];
+
+    exp -> shape.sizes_length = arg1 -> shape.sizes_length;
+    exp -> shape.sizes = malloc(sizeof(size_t) * exp -> shape.sizes_length);
+    if (exp -> shape.sizes == NULL) {
+        free(exp -> values);
+        free(exp);
+        return NULL;
     }
-    exp -> arg1 = arg;
+    for (size_t i = 0; i < exp -> shape.sizes_length; i++) {
+        exp -> shape.sizes[i] = arg1 -> shape.sizes[i];
+    }
+
+    exp -> arg1 = arg1;
     exp -> arg2 = NULL;
-    exp -> arg3 = 0.0;
-    exp -> type = SIN;
+    exp -> arg3 = arg3;
+    exp -> type = type;
     return exp;
+}
+
+expression* exp_sin(expression* arg) {
+    return exp_unary(arg, 0.0, SIN);
 }
 
 expression* exp_relu(expression* arg) {
-    expression* exp = malloc(sizeof(expression));
-
-    size_t length = 1;
-    for (size_t i = 0; i < arg -> shape.sizes_length; i++) {
-        length *= arg -> shape.sizes[i];
-    }
-
-    exp -> values = malloc(sizeof(double) * length);
-    for (size_t i = 0; i < length; i++) {
-        exp -> values[i] = 0.0;
-    }
-
-    exp -> derivative = NULL;
-    exp -> shape.sizes_length = arg -> shape.sizes_length;
-    exp -> shape.sizes = malloc(sizeof(size_t) * arg -> shape.sizes_length);
-    for (size_t i = 0; i < arg -> shape.sizes_length; i++) {
-        exp -> shape.sizes[i] = arg -> shape.sizes[i];
-    }
-    exp -> arg1 = arg;
-    exp -> arg2 = NULL;
-    exp -> arg3 = 0.0;
-    exp -> type = RELU;
-    return exp;
+    return exp_unary(arg, 0.0, RELU);
 }
 
 expression* exp_sigmoid(expression* arg) {
-    expression* exp = malloc(sizeof(expression));
-
-    size_t length = 1;
-    for (size_t i = 0; i < arg -> shape.sizes_length; i++) {
-        length *= arg -> shape.sizes[i];
-    }
-
-    exp -> values = malloc(sizeof(double) * length);
-    for (size_t i = 0; i < length; i++) {
-        exp -> values[i] = 0.0;
-    }
-
-    exp -> derivative = NULL;
-    exp -> shape.sizes_length = arg -> shape.sizes_length;
-    exp -> shape.sizes = malloc(sizeof(size_t) * arg -> shape.sizes_length);
-    for (size_t i = 0; i < arg -> shape.sizes_length; i++) {
-        exp -> shape.sizes[i] = arg -> shape.sizes[i];
-    }
-    exp -> arg1 = arg;
-    exp -> arg2 = NULL;
-    exp -> arg3 = 0.0;
-    exp -> type = SIGMOID;
-    return exp;
+   exp_unary(arg, 0.0, SIGMOID);
 }
 
 expression* exp_log(expression* arg) {
-    expression* exp = malloc(sizeof(expression));
-
-    size_t length = 1;
-    for (size_t i = 0; i < arg -> shape.sizes_length; i++) {
-        length *= arg -> shape.sizes[i];
-    }
-
-    exp -> values = malloc(sizeof(double) * length);
-    for (size_t i = 0; i < length; i++) {
-        exp -> values[i] = 0.0;
-    }
-
-    exp -> derivative = NULL;
-    exp -> shape.sizes_length = arg -> shape.sizes_length;
-    exp -> shape.sizes = malloc(sizeof(size_t) * arg -> shape.sizes_length);
-    for (size_t i = 0; i < arg -> shape.sizes_length; i++) {
-        exp -> shape.sizes[i] = arg -> shape.sizes[i];
-    }
-    exp -> arg1 = arg;
-    exp -> arg2 = NULL;
-    exp -> arg3 = 0.0;
-    exp -> type = LOG;
-    return exp;
+    exp_unary(arg, 0.0, LOG);
 }
 
 expression* exp_power(expression* arg, double exponent) {
-    expression* exp = malloc(sizeof(expression));
+    exp_unary(arg, exponent, POWER);
+}
+
+// doesn't check whether the type is binary.
+expression* exp_binary(expression* arg1, expression* arg2, expression_type type) {
+    shape exp_shape;
+    if (type == MATMUL) {
+        exp_shape = matmul_shape(arg1 -> shape, arg2 -> shape);
+    } else {
+        exp_shape = broadcast_shape(arg1 -> shape, arg2 -> shape);
+    }
+    if (exp_shape.sizes == NULL) {
+        return NULL;
+    }
 
     size_t length = 1;
-    for (size_t i = 0; i < arg -> shape.sizes_length; i++) {
-        length *= arg -> shape.sizes[i];
+    for (size_t i = 0; i < exp_shape.sizes_length; i++) {
+        // Overflow check
+        if (exp_shape.sizes[i] == 0 || length > SIZE_MAX / exp_shape.sizes[i]) {
+            free(exp_shape.sizes);
+            return NULL;
+        }
+        length *= exp_shape.sizes[i];
+    }
+
+    expression* exp = malloc(sizeof(expression));
+    if (exp == NULL) {
+        free(exp_shape.sizes);
+        return NULL;
     }
 
     exp -> values = malloc(sizeof(double) * length);
+    if (exp -> values == NULL) {
+        free(exp);
+        free(exp_shape.sizes);
+        return NULL;
+    }
     for (size_t i = 0; i < length; i++) {
         exp -> values[i] = 0.0;
     }
 
     exp -> derivative = NULL;
-    exp -> shape.sizes_length = arg -> shape.sizes_length;
-    exp -> shape.sizes = malloc(sizeof(size_t) * arg -> shape.sizes_length);
-    for (size_t i = 0; i < arg -> shape.sizes_length; i++) {
-        exp -> shape.sizes[i] = arg -> shape.sizes[i];
-    }
-    exp -> arg1 = arg;
-    exp -> arg2 = NULL;
-    exp -> arg3 = exponent;
-    exp -> type = POWER;
+    exp -> shape = exp_shape;
+    exp -> arg1 = arg1;
+    exp -> arg2 = arg2;
+    exp -> arg3 = 0.0;
+    exp -> type = type;
     return exp;
 }
 
 expression* exp_add(expression* arg1, expression* arg2) {
-    // TODO: Should I add an assertion for equal lengths?
-    shape exp_shape = broadcast_shape(arg1 -> shape, arg2 -> shape);
-    if (exp_shape.sizes == NULL) {
-        return NULL;
-    }
-
-    expression* exp = malloc(sizeof(expression));
-
-    size_t length = 1;
-    for (size_t i = 0; i < exp_shape.sizes_length; i++) {
-        length *= exp_shape.sizes[i];
-    }
-    exp -> values = malloc(sizeof(double) * length);
-    for (size_t i = 0; i < length; i++) {
-        exp -> values[i] = 0.0;
-    }
-
-    exp -> derivative = NULL;
-    exp -> shape = exp_shape;
-    exp -> arg1 = arg1;
-    exp -> arg2 = arg2;
-    exp -> arg3 = 0.0;
-    exp -> type = ADD;
-    return exp;
+    return exp_binary(arg1, arg2, ADD);
 }
 
 expression* exp_mul(expression* arg1, expression* arg2) {
-    shape exp_shape = broadcast_shape(arg1 -> shape, arg2 -> shape);
-    if (exp_shape.sizes == NULL) {
-        return NULL;
-    }
-
-    expression* exp = malloc(sizeof(expression));
-
-    size_t length = 1;
-    for (size_t i = 0; i < exp_shape.sizes_length; i++) {
-        length *= exp_shape.sizes[i];
-    }
-    exp -> values = malloc(sizeof(double) * length);
-    for (size_t i = 0; i < length; i++) {
-        exp -> values[i] = 0.0;
-    }
-
-    exp -> derivative = NULL;
-    exp -> shape = exp_shape;
-    exp -> arg1 = arg1;
-    exp -> arg2 = arg2;
-    exp -> arg3 = 0.0;
-    exp -> type = MUL;
-    return exp;
+    return exp_binary(arg1, arg2, MUL);
 }
 
 expression* exp_matmul(expression* arg1, expression* arg2) {
-    shape exp_shape = matmul_shape(arg1 -> shape, arg2 -> shape);
-    if (exp_shape.sizes == NULL) {
-        return NULL;
-    }
-
-    expression* exp = malloc(sizeof(expression));
-
-    size_t length = 1;
-    for (size_t i = 0; i < exp_shape.sizes_length; i++) {
-        length *= exp_shape.sizes[i];
-    }
-    exp -> values = malloc(sizeof(double) * length);
-    for (size_t i = 0; i < length; i++) {
-        exp -> values[i] = 0.0;
-    }
-
-    exp -> derivative = NULL;
-    exp -> shape = exp_shape;
-    exp -> arg1 = arg1;
-    exp -> arg2 = arg2;
-    exp -> arg3 = 0.0;
-    exp -> type = MATMUL;
-    return exp;
+    return exp_binary(arg1, arg2, MATMUL);
 }
 
 expression* exp_sub(expression* arg1, expression* arg2) {
-    shape exp_shape = broadcast_shape(arg1 -> shape, arg2 -> shape);
-    if (exp_shape.sizes == NULL) {
-        return NULL;
-    }
-
-    expression* exp = malloc(sizeof(expression));
-
-    size_t length = 1;
-    for (size_t i = 0; i < exp_shape.sizes_length; i++) {
-        length *= exp_shape.sizes[i];
-    }
-    exp -> values = malloc(sizeof(double) * length);
-    for (size_t i = 0; i < length; i++) {
-        exp -> values[i] = 0.0;
-    }
-
-    exp -> derivative = NULL;
-    exp -> shape = exp_shape;
-    exp -> arg1 = arg1;
-    exp -> arg2 = arg2;
-    exp -> arg3 = 0.0;
-    exp -> type = SUB;
-    return exp;
+    exp_binary(arg1, arg2, SUB);
 }
 
 void free_exp(expression* exp) {
@@ -438,25 +383,24 @@ void free_exp(expression* exp) {
     free(exp);
 }
 
-size_t broadcast_index(size_t index, shape larger, shape smaller) {
+size_t broadcast_index(size_t output_index, shape output_shape, shape input_shape) {
     size_t res = 0;
     size_t stride = 1;
-    for (size_t j = 0; j < smaller.sizes_length; j++) {
-        size_t res_position_index = index % larger.sizes[larger.sizes_length - 1 - j];
-        size_t position_index = (smaller.sizes[smaller.sizes_length - 1 - j] == 1) ? 0 : res_position_index;
-        res += position_index * stride;
-        stride *= smaller.sizes[smaller.sizes_length - 1 - j];
-        index /= larger.sizes[larger.sizes_length - 1 - j];
+    for (size_t j = 0; j < input_shape.sizes_length; j++) {
+        size_t output_position_index = output_index % output_shape.sizes[output_shape.sizes_length-1-j];
+        size_t input_position_index = (input_shape.sizes[input_shape.sizes_length-1-j] == 1) ? 0 : output_position_index;
+        res += input_position_index * stride;
+
+        output_index /= output_shape.sizes[output_shape.sizes_length-1-j];
+        stride *= input_shape.sizes[input_shape.sizes_length-1-j];
     }
     return res;
 }
 
-// TODO: The length calculations can overflow, add checks for them.
 void calc(expression* expr) {
-    size_t length = 1;
-    for (size_t i = 0; i < expr -> shape.sizes_length; i++) {
-        length *= expr -> shape.sizes[i];
-    }
+    // TODO: I don't perform overflow checks here.
+    // Consider this once you decide the public API.
+    size_t length = shape_total_length(expr -> shape);
 
     switch (expr -> type) {
         case TENSOR: {
@@ -535,6 +479,17 @@ void calc(expression* expr) {
                 .sizes = one,
                 .sizes_length = 1
             };
+            size_t broadcast_res_shape_sizes_length;
+            if (expr -> arg1 -> shape.sizes_length > 1 && expr -> arg2 -> shape.sizes_length > 1) {
+                broadcast_res_shape_sizes_length = expr -> shape.sizes_length - 2;
+            } else {
+                broadcast_res_shape_sizes_length = expr -> shape.sizes_length - 1;
+            }
+            if (broadcast_res_shape_sizes_length > 0) {
+                broadcast_res_shape.sizes = expr -> shape.sizes;
+                broadcast_res_shape.sizes_length = broadcast_res_shape_sizes_length;
+            }
+
             shape broadcast_shape1 = {
                 .sizes = one,
                 .sizes_length = 1,
@@ -543,14 +498,6 @@ void calc(expression* expr) {
                 .sizes = one,
                 .sizes_length = 1,
             };
-            size_t broadcast_res_shape_sizes_length = expr -> shape.sizes_length - 1;
-            if (expr -> arg1 -> shape.sizes_length > 1 && expr -> arg2 -> shape.sizes_length > 1) {
-                broadcast_res_shape_sizes_length = expr -> shape.sizes_length - 2;
-            }
-            if (broadcast_res_shape_sizes_length > 0) {
-                broadcast_res_shape.sizes = expr -> shape.sizes;
-                broadcast_res_shape.sizes_length = broadcast_res_shape_sizes_length;
-            }
             if (expr -> arg1 -> shape.sizes_length > 2) {
                 broadcast_shape1.sizes = expr -> arg1 -> shape.sizes;
                 broadcast_shape1.sizes_length = expr -> arg1 -> shape.sizes_length - 2;
@@ -589,15 +536,8 @@ void calc(expression* expr) {
     }
 }
 
-void free_pointer(void* p) {
-    free(p);
-}
-
 void backward_recursive(expression* expr, double* mult) {
-    size_t length = 1;
-    for (size_t i = 0; i < expr -> shape.sizes_length; i++) {
-        length *= expr -> shape.sizes[i];
-    }
+    size_t length = shape_total_length(expr -> shape);
 
     switch (expr -> type) {
         case TENSOR: {
@@ -630,8 +570,7 @@ void backward_recursive(expression* expr, double* mult) {
         }
         case LOG: {
             for (size_t i = 0; i < length; i++) {
-                // TODO: What should I do for negative values?
-                mult[i] *= 1 / expr -> arg1 -> values[i];
+                mult[i] *= (expr -> arg1 -> values[i] >= 0.0) ? 1 / expr -> arg1 -> values[i] : NAN;
             }
             backward_recursive(expr -> arg1, mult);
             break;
@@ -640,7 +579,6 @@ void backward_recursive(expression* expr, double* mult) {
             for (size_t i = 0; i < length; i++) {
                 mult[i] *= expr -> arg3 * pow(expr -> arg1 -> values[i], expr -> arg3 - 1.0);
             }
-
             backward_recursive(expr -> arg1, mult);
             break;
         }
@@ -718,6 +656,17 @@ void backward_recursive(expression* expr, double* mult) {
                 .sizes = one,
                 .sizes_length = 1
             };
+            size_t broadcast_res_shape_sizes_length;
+            if (expr -> arg1 -> shape.sizes_length > 1 && expr -> arg2 -> shape.sizes_length > 1) {
+                broadcast_res_shape_sizes_length = expr -> shape.sizes_length - 2;
+            } else {
+                broadcast_res_shape_sizes_length = expr -> shape.sizes_length - 1;
+            }
+            if (broadcast_res_shape_sizes_length > 0) {
+                broadcast_res_shape.sizes = expr -> shape.sizes;
+                broadcast_res_shape.sizes_length = broadcast_res_shape_sizes_length;
+            }
+
             shape broadcast_shape1 = {
                 .sizes = one,
                 .sizes_length = 1,
@@ -726,14 +675,6 @@ void backward_recursive(expression* expr, double* mult) {
                 .sizes = one,
                 .sizes_length = 1,
             };
-            size_t broadcast_res_shape_sizes_length = expr -> shape.sizes_length - 1;
-            if (expr -> arg1 -> shape.sizes_length > 1 && expr -> arg2 -> shape.sizes_length > 1) {
-                broadcast_res_shape_sizes_length = expr -> shape.sizes_length - 2;
-            }
-            if (broadcast_res_shape_sizes_length > 0) {
-                broadcast_res_shape.sizes = expr -> shape.sizes;
-                broadcast_res_shape.sizes_length = broadcast_res_shape_sizes_length;
-            }
             if (expr -> arg1 -> shape.sizes_length > 2) {
                 broadcast_shape1.sizes = expr -> arg1 -> shape.sizes;
                 broadcast_shape1.sizes_length = expr -> arg1 -> shape.sizes_length - 2;
@@ -791,10 +732,7 @@ void backward_recursive(expression* expr, double* mult) {
 }
 
 void backward(expression* exp) {
-    size_t length = 1;
-    for (size_t i = 0; i < exp -> shape.sizes_length; i++) {
-        length *= exp -> shape.sizes[i];
-    }
+    size_t length = shape_total_length(exp -> shape);
 
     double *mult = malloc(sizeof(double) * length);
     for (size_t i = 0; i < length; i++) {
