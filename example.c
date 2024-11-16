@@ -60,7 +60,7 @@ int main() {
         // If you want the value of an expression,
         // you calc and then read the values.
         calc(loss);
-        printf("Loss: %f\n", loss->values[0]);
+        printf("loss[0]: %f\n\n", loss->values[0]); // Loss has shape [100].
 
         // Set derivative zero for tensors.
         set_derivative_zero(coeff);

@@ -1,3 +1,7 @@
+# To use this library, you need to first compile autodiff.c.
+# Use this on Linux/WSL:
+# gcc autodiff.c -lm -fPIC -shared -o autodiff_lib.so
+
 from autodiff import Tensor
 import random
 
@@ -11,11 +15,13 @@ c = Tensor([0.0])
 loss = (y - x @ m - c) ** 2 * Tensor([1 / 100])
 
 for _ in range(1000):
-    print('Weights', [m.get_values(), c.get_values()])
+    print('Weights:', [m.get_values(), c.get_values()])
+    print('loss[0]:', loss.calc()[0]) # Loss has shape [100].
     m.set_derivative_zero()
     c.set_derivative_zero()
     loss.backward()
     m.derivative_step(-0.01)
     c.derivative_step(-0.01)
+    print()
 
 print("Actual: ", actual)
