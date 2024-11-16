@@ -40,7 +40,6 @@ int main() {
     expression* coeff = tensor(NULL, coeff_size, 1);
     expression* intercept = tensor(NULL, intercept_size, 1);
 
-    printf("Hello\n");
     // Create expression using the exp_ functions.
     // If the creation failed (due to memory / shape mismatch),
     // NULL is returned.
