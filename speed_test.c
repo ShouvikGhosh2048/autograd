@@ -1,5 +1,4 @@
-// TODO: Create header files for general use.
-#include "autodiff.c"
+#include "autodiff.h"
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>

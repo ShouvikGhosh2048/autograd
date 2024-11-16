@@ -3,27 +3,10 @@
 #include <math.h>
 #include <stdint.h>
 #include <string.h>
+#include "autodiff.h"
 
 // https://stackoverflow.com/a/19188730
 // https://stackoverflow.com/a/19188749
-
-typedef enum {
-    TENSOR,
-    SIN,
-    RELU,
-    SIGMOID,
-    LOG,
-    POWER,
-    ADD,
-    MUL,
-    MATMUL,
-    SUB,
-} expression_type;
-
-typedef struct {
-    size_t *sizes;
-    size_t sizes_length;
-} shape;
 
 // Can overflow depending on sizes.
 size_t shape_total_length(shape shape) {
@@ -180,17 +163,6 @@ shape matmul_shape(shape shape1, shape shape2) {
     return res;
 }
 
-typedef struct expression {
-    double *values;
-    double *derivative;
-    shape shape;
-    struct expression *arg1;
-    struct expression *arg2;
-    // Additional argument for expression, for example the exponent for power.
-    double arg3;
-    expression_type type;
-} expression;
-
 // values is allowed to be NULL, will be zero initialized if so.
 expression* tensor(double *values, size_t *sizes, size_t sizes_length) {
     if (sizes == NULL || sizes_length == 0) {
@@ -300,15 +272,15 @@ expression* exp_relu(expression* arg) {
 }
 
 expression* exp_sigmoid(expression* arg) {
-   exp_unary(arg, 0.0, SIGMOID);
+   return exp_unary(arg, 0.0, SIGMOID);
 }
 
 expression* exp_log(expression* arg) {
-    exp_unary(arg, 0.0, LOG);
+    return exp_unary(arg, 0.0, LOG);
 }
 
 expression* exp_power(expression* arg, double exponent) {
-    exp_unary(arg, exponent, POWER);
+    return exp_unary(arg, exponent, POWER);
 }
 
 // doesn't check whether the type is binary.
@@ -371,7 +343,7 @@ expression* exp_matmul(expression* arg1, expression* arg2) {
 }
 
 expression* exp_sub(expression* arg1, expression* arg2) {
-    exp_binary(arg1, arg2, SUB);
+    return exp_binary(arg1, arg2, SUB);
 }
 
 void free_exp(expression* exp) {

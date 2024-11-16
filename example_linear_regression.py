@@ -1,14 +1,6 @@
 from autodiff import Tensor
 import random
 
-def clamp(x, a, b):
-    if x < a:
-        return a
-    elif b < x:
-        return b
-    else:
-        return x
-
 actual = [20 * random.random() - 10, 20 * random.random() - 10, 20 * random.random() - 10]
 x = [[20 * random.random() - 10, 20 * random.random() - 10] for _ in range(100)]
 y = [x[i][0] * actual[0] + x[i][1] * actual[1] + actual[2] for i in range(100)]
